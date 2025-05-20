@@ -1,0 +1,7 @@
+model:
+  response_mime_type: 'application/json'
+  temperature: 0
+
+image:
+  max_size_kb: 400
+  initial_quality: 95

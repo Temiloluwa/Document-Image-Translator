@@ -1,0 +1,16 @@
+include:
+  - project: 'bildcraft/shared/ci-cd-pipelines'
+    file: '/ci-base/python/.ci-code-publish-lambda.yml'
+    ref: main
+
+variables:
+  PYTHONUNBUFFERED: '1'
+  S3_BUCKET: "hyc-prod-lambda-source-codes"
+  S3_FOLDER: "blc/image-translation"
+  FILE_NAME: "image-translation-source-codes.zip"
+  FUNCTION_NAME: "blc-image-translation-processor-fn"
+
+stages:
+  - code-quality
+  - build
+  - deploy

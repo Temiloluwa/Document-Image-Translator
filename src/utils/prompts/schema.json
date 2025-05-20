@@ -1,0 +1,100 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "DocumentTranslation",
+    "type": "object",
+    "required": ["metadata", "source", "target"],
+    "properties": {
+      "metadata": {
+        "type": "object",
+        "required": ["source_format", "source_lang", "target_lang", "dpi"],
+        "properties": {
+          "source_format": {
+            "type": "string",
+            "enum": ["pdf", "image", "docx"]
+          },
+          "source_lang": {
+            "type": "string"
+          },
+          "target_lang": {
+            "type": "string"
+          },
+          "dpi": {
+            "type": "integer"
+          }
+        }
+      },
+      "source": {
+        "$ref": "#/definitions/Document"
+      },
+      "target": {
+        "$ref": "#/definitions/Document"
+      }
+    },
+    "definitions": {
+      "Document": {
+        "type": "object",
+        "required": ["pages"],
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/Page" }
+          }
+        }
+      },
+      "Page": {
+        "type": "object",
+        "required": ["page_num", "dimensions", "elements"],
+        "properties": {
+          "page_num": { "type": "integer" },
+          "dimensions": {
+            "type": "object",
+            "required": ["width", "height"],
+            "properties": {
+              "width": { "type": "integer" },
+              "height": { "type": "integer" }
+            }
+          },
+          "elements": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/Element" }
+          }
+        }
+      },
+      "Element": {
+        "type": "object",
+        "required": ["type", "content", "bounding_box", "style", "language"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["text", "image", "table"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "bounding_box": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "style": {
+            "$ref": "#/definitions/Style"
+          },
+          "language": {
+            "type": "string"
+          }
+        }
+      },
+      "Style": {
+        "type": "object",
+        "required": ["font_family", "font_size", "color", "is_bold", "is_italic"],
+        "properties": {
+          "font_family": { "type": "string" },
+          "font_size": { "type": "integer" },
+          "color": { "type": "string" },
+          "is_bold": { "type": "boolean" },
+          "is_italic": { "type": "boolean" }
+        }
+      }
+    }
+  }
