@@ -1,19 +1,28 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 
 
 class LLM(ABC):
+    """
+    Abstract base class for Large Language Model (LLM) interfaces.
+    """
+
     @abstractmethod
-    def _setup(self, **kwargs: Dict[str, Any]) -> None:
-        """Set up the LLM with any necessary configurations."""
+    def _setup(self, **kwargs):
+        """
+        Set up the LLM client and configuration.
+        """
         pass
 
     @abstractmethod
-    def generate(self, **kwargs: Dict[str, Any]) -> str:
-        """Generate text based on the given prompt."""
+    def generate(self, **kwargs):
+        """
+        Generate content using the LLM.
+        """
         pass
 
     @abstractmethod
-    def _parse_output(self, **kwargs: Dict[str, Any]) -> Any:
-        """Parse LLM response"""
+    def _parse_output(self, **kwargs):
+        """
+        Parse the output from the LLM response.
+        """
         pass

@@ -25,9 +25,12 @@ clean:
 lint:
 	.venv/bin/ruff check $(SRC_FOLDER)
 	.venv/bin/ruff format $(SRC_FOLDER)
-	# .venv/bin/mypy $(SRC_FOLDER)
+	# .venv/bin/mypy
 
 test:
-	cd src && uv run coverage run -m pytest ../$(TEST_FOLDER)
-	cd src && uv run coverage report
-	cd src && uv run coverage html -d ../coverage_html
+	PYTHONPATH=$(SRC_FOLDER) uv run pytest -m "not integration" --cov=src --cov-report=term --cov-report=html:coverage_html $(TEST_FOLDER)
+
+integration-test:
+	PYTHONPATH=$(SRC_FOLDER) uv run pytest -m integration --cov=src --cov-report=term --cov-report=html:coverage_html $(TEST_FOLDER)
+
+integration: integration-test

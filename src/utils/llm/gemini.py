@@ -3,7 +3,7 @@ from google import genai
 from google.genai.types import GenerateContentConfig, GenerateContentResponse
 from models.message import GeminiUserMessage, GeminiAssistantMessage
 from PIL import Image
-from typing import List, Dict, Any
+from typing import Dict, Any, List
 import os
 
 
@@ -37,10 +37,13 @@ class Gemini(LLM):
             system_instruction=system_instruction,
             **kwargs,  # type: ignore[arg-type]
         )
-        self._client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self._client = genai.Client(api_key=os.getenv("TRANSLATION_MODEL_API_KEY"))
 
-    def generate(  # type: ignore[override]
-        self, prompt: str, images: List[Image.Image]
+    async def generate(  # type: ignore[override]
+        self,
+        prompt: str,
+        image: List[Image.Image],
+        model: str = "gemini-1.5-flash-001",  # type: ignore[arg-type]
     ) -> GeminiAssistantMessage:
         """
         Generate a response from the Gemini LLM based on a text prompt and an image.
@@ -54,15 +57,24 @@ class Gemini(LLM):
         """
         prompt = prompt.replace("\n", " ").strip()
 
-        response = self._client.models.generate_content(
-            model=os.getenv("LLM"),  # type: ignore[arg-type]
-            contents=GeminiUserMessage(prompt, images).contents,  # type: ignore[arg-type]
+        response = await self._client.aio.models.generate_content(
+            model=model,  # type: ignore[arg-type]
+            contents=GeminiUserMessage(prompt, image).contents,  # type: ignore[arg-type]
             config=self._config,
         )
-
         return self._parse_output(response)
 
     def _parse_output(  # type: ignore[override]
         self, response: GenerateContentResponse
     ) -> GeminiAssistantMessage:
+        """
+        Parse the output from the GenerateContentResponse to extract the generated message.
+
+        Args:
+            response (GenerateContentResponse): The response from the Gemini LLM containing the generated content.
+
+        Returns:
+            GeminiAssistantMessage: The parsed message from the LLM's response.
+        """
+        response = response.candidates[0].content.parts[0].text
         return GeminiAssistantMessage(response)

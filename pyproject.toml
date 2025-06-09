@@ -10,6 +10,9 @@ authors = [
 
 [dependency-groups]
 prod = [
+    "aioboto3>=14.3.0",
+    "aiofiles>=24.1.0",
+    "beautifulsoup4>=4.13.4",
     "datauri>=1.0.0",
     "google-genai>=1.13.0",
     "mistralai>=1.7.0",
@@ -27,6 +30,12 @@ lint = [
 tests = [
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
+    "numpy>=1.26.4",
+    "pytest-asyncio>=1.0.0",
+    "pytest-dotenv>=0.5.2",
+]
+api = [
+    "python-ulid>=3.0.0",
 ]
 
 [tool.uv]

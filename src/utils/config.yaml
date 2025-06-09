@@ -1,7 +1,11 @@
-model:
+translator_model:
+  id: "gemini-2.5-flash-preview-04-17"
   response_mime_type: 'application/json'
   temperature: 0
 
+ocr_model:
+  id: "mistral-ocr-latest"
+
 image:
-  max_size_kb: 400
+  max_size_kb: 1024
   initial_quality: 95

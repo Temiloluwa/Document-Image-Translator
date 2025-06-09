@@ -1,0 +1,10 @@
+{
+  "Records": [
+    {
+      "s3": {
+        "bucket": {"name": "uploads-bucket"},
+        "object": {"key": "uploads/uuid-123/en/deutschland-edition-pg-6.png"}
+      }
+    }
+  ]
+}

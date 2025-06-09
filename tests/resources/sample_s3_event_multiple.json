@@ -1,0 +1,28 @@
+{
+  "Records": [
+    {
+      "s3": {
+        "bucket": {"name": "uploads-bucket"},
+        "object": {"key": "uploads/uuid-123/en/deutschland-edition-pg-6.png"}
+      }
+    },
+    {
+      "s3": {
+        "bucket": {"name": "uploads-bucket"},
+        "object": {"key": "uploads/uuid-456/fr/deutschland-edition-pg-7.png"}
+      }
+    },
+    {
+      "s3": {
+        "bucket": {"name": "uploads-bucket"},
+        "object": {"key": "uploads/uuid-789/de/deutschland-edition-pg-8.png"}
+      }
+    },
+    {
+      "s3": {
+        "bucket": {"name": "uploads-bucket"},
+        "object": {"key": "uploads/uuid-abc/es/deutschland-edition-pg-9.png"}
+      }
+    }
+  ]
+}

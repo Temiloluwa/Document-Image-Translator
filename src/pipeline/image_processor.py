@@ -1,31 +1,35 @@
+"""
+Image processing utilities: enhancement, compression, and input normalization for translation pipeline.
+"""
+
 import io
 from logging import getLogger
 
-from PIL import Image, ImageEnhance
-from utils.utils import load_image, get_config
+from PIL import Image, ImageEnhance, ImageFilter
+from utils.utils import load_image, get_config, encode_image
 
 logger = getLogger("image-translator")
 
 
-def process_input_image(image: str | bytes) -> Image.Image:
+def process_input_image(image: str | bytes) -> str:
     """
-    Processes an input image by enhancing and compressing it.
+    Processes an input image by enhancing and compressing it, then encodes it to a base64 data URL.
 
     Args:
         image (str | bytes): The input image, either as a file path (str) or raw bytes.
 
     Returns:
-        Image: The processed image as a PIL Image.
+        str: The processed image encoded as a base64 data URL (data:image/jpeg;base64,...).
     """
     logger.info("Processing input image...")
     config = get_config().image
 
     pil_img = load_image(image)
-    pil_img = pil_img.convert("RGB")
     pil_img = enhance_image(pil_img)
     pil_img = compress_image(pil_img, config.max_size_kb, config.initial_quality)
+    logger.info("Image processing complete.")
 
-    return pil_img
+    return encode_image(pil_img)
 
 
 def compress_image(
@@ -72,15 +76,20 @@ def compress_image(
 
 def enhance_image(image: Image.Image) -> Image.Image:
     """
-    Enhances an image to improve OCR accuracy by increasing its contrast.
+    Enhances the image by adjusting contrast, brightness, sharpness, and color balance.
 
     Args:
-        image (Image): The input image to be enhanced.
+        image (Image): The image to be enhanced.
 
     Returns:
         Image: The enhanced image.
     """
-    enhancer = ImageEnhance.Contrast(image)
-    enhanced = enhancer.enhance(2.0)
-    logger.info("Image contrast enhanced.")
-    return enhanced
+    image = ImageEnhance.Contrast(image).enhance(2.0)
+    image = ImageEnhance.Brightness(image).enhance(1.1)
+    image = image.filter(ImageFilter.SHARPEN)
+    image = image.filter(ImageFilter.MedianFilter(size=3))
+    image = ImageEnhance.Color(image).enhance(1.2)
+    logger.info(
+        "Image enhanced: contrast, brightness, sharpen, denoise, color balance applied."
+    )
+    return image

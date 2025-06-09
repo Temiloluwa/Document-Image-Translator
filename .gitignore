@@ -60,3 +60,35 @@ cython_debug/
 data/
 .venv/
 coverage_html/
+
+# TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Next.js
+.next/
+
+# Vite
+.vite/
+
+# Yarn
+.yarn/
+.pnp.*
+
+# Bun
+bun.lock
+
+# ESLint
+.eslintcache
+
+# Prettier
+.prettier*
+
+# Storybook
+out/
+.storybook/
+
+# Coverage for JS/TS
+coverage/
