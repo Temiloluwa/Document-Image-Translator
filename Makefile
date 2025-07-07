@@ -6,6 +6,7 @@ SRC_FOLDER = src
 TEST_FOLDER = tests
 
 VENV_ACTIVATE = . .venv/bin/activate &&
+VENV_API_ACTIVATE = . .venv_api/bin/activate &&
 
 dev:
 	uv venv --python=$(PYTHON_VERSION) .venv
@@ -16,7 +17,11 @@ dev-sync:
 
 prod:
 	uv venv --python=$(PYTHON_VERSION) .venv
-	$(VENV_ACTIVATE) uv sync
+	$(VENV_ACTIVATE) uv sync --group=prod
+
+prod-api:
+	uv venv --python=$(PYTHON_VERSION) .venv_api
+	$(VENV_API_ACTIVATE) uv sync --group=api --active
 
 clean:
 	rm -rf .venv

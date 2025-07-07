@@ -8,6 +8,7 @@ class Status:
     progress: int = 0
     message: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
+    uuid: Optional[str] = None  # Now part of status
 
     def asdict(self):
         d = asdict(self)

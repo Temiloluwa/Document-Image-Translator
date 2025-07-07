@@ -92,3 +92,4 @@ out/
 
 # Coverage for JS/TS
 coverage/
+.vercel

@@ -2,10 +2,11 @@
 Utility functions for image loading, S3/DynamoDB interactions, config loading, and error handling.
 """
 
-import base64
 import io
+import base64
 import json
 import logging
+import datetime
 import os
 from typing import Any, Dict, Union
 
@@ -107,36 +108,6 @@ def get_config(config_path: str = "utils/config.yaml") -> DictConfig | ListConfi
         return OmegaConf.load(file)
 
 
-def encode_image(image, format="JPEG"):
-    """Encode a file path or PIL Image to base64 and detect its format."""
-    from mimetypes import guess_type
-    import io
-
-    if isinstance(image, str):
-        try:
-            mime_type, _ = guess_type(image)
-            if mime_type is None or not mime_type.startswith("image/"):
-                logger.error(f"Error: The file {image} is not a valid image.")
-                return None
-            with open(image, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-                return f"data:{mime_type};base64,{base64_image}"
-        except FileNotFoundError:
-            logger.error(f"Error: The file {image} was not found.")
-            return None
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            return None
-    elif isinstance(image, Image.Image):
-        buf = io.BytesIO()
-        image.save(buf, format=format)
-        base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
-        mime_type = f"image/{format.lower()}"
-        return f"data:{mime_type};base64,{base64_image}"
-    else:
-        raise ValueError("Input must be a file path or PIL Image.")
-
-
 class JSONFormatter(jsonlogger.JsonFormatter):  # type: ignore
     """
     Custom logging formatter to output logs in JSON format using python-json-logger.
@@ -236,11 +207,12 @@ async def upload_file_to_s3(file_path: str, bucket: str, key: str) -> None:
 
 async def extract_s3_info_and_download(event: dict) -> list[tuple[str, str, str, str]]:
     """
-    Extracts S3 bucket, uuid, target language, and file name from all records in the event,
+
+    Extracts S3 bucket, date prefix, uuid, target language, and file name from all records in the event,
     downloads each file to a structured path: /tmp/<uuid>/<target-language>/<filename>.
 
     Returns:
-        list[tuple[str, str, str, str]]: List of (download_path, uuid, target_language, file_name)
+        list[tuple[str, str, str, str, str]]: List of (download_path, date_prefix, uuid, target_language, file_name)
     """
     results = []
     records = event.get("Records", [])
@@ -263,17 +235,18 @@ async def extract_s3_info_and_download(event: dict) -> list[tuple[str, str, str,
             logger.info(f"Extracted S3 key: {key}")
             parts = key.strip("/").split("/")
 
-            # Check if key has correct structure: uploads/<uuid>/<language>/<filename>
-            if len(parts) < 4 or parts[0] != "uploads":
+            # Check if key has correct structure: uploads/<date-prefix>/<uuid>/<language>/<filename>
+            if len(parts) < 5 or parts[0] != "uploads":
                 logger.warning(f"Skipping non-matching key: {key}")
                 continue
 
-            uuid_str = parts[1]
-            target_language = parts[2]
-            file_name = parts[3]
+            date_prefix = parts[1]
+            uuid_str = parts[2]
+            target_language = parts[3]
+            file_name = parts[4]
 
             logger.info(
-                f"Extracted UUID: {uuid_str}, Target Language: {target_language}, File Name: {file_name}"
+                f"Extracted Date Prefix: {date_prefix}, UUID: {uuid_str}, Target Language: {target_language}, File Name: {file_name}"
             )
 
             if not file_name or file_name.endswith("/"):
@@ -287,7 +260,9 @@ async def extract_s3_info_and_download(event: dict) -> list[tuple[str, str, str,
             await download_file_from_s3(bucket, key, download_path)
             logger.info("Record download successful")
 
-            results.append((download_path, uuid_str, target_language, file_name))
+            results.append(
+                (download_path, date_prefix, uuid_str, target_language, file_name)
+            )
 
         except Exception as e:
             logger.error(f"Failed to process record: {e}")
@@ -297,25 +272,32 @@ async def extract_s3_info_and_download(event: dict) -> list[tuple[str, str, str,
 
 
 async def upload_translation_result_to_s3(
-    ocr_response, file_uuid: str, original_file_name: str
+    ocr_response, date_prefix: str, file_uuid: str, original_file_name: str
 ) -> None:
     """
     Uploads the translation result (markdown and HTML) to the S3 bucket specified by the RESULTS_BUCKET environment variable asynchronously.
-    The results are stored under the prefix /results/<uuid>/<original_file_name>_result.md and _result.html
+    The results are stored under the prefix /results/<date-prefix>/<uuid>/<original_file_name>_result.md and _result.html
 
     Args:
         ocr_response (OcrResponse): The OCR IR object to upload.
+        date_prefix (str): The date prefix extracted from the upload key (e.g., jan-05-24).
         file_uuid (str): The unique ID for the translation job.
         original_file_name (str): The original file name of the uploaded file.
     """
     bucket = os.environ.get("RESULTS_BUCKET")
     if not bucket:
         raise RuntimeError("RESULTS_BUCKET environment variable is not set.")
-    base_name = os.path.splitext(original_file_name)[0]
-    key_md = f"results/{file_uuid}/{base_name}_result.md"
-    key_html = f"results/{file_uuid}/{base_name}_result.html"
-    tmp_md = f"/tmp/{base_name}_result.md"
-    tmp_html = f"/tmp/{base_name}_result.html"
+    # The filename is already sanitized, just split and join with _
+    name, ext = os.path.splitext(original_file_name)
+    if not ext:
+        raise Exception(
+            f"upload_translation_result_to_s3: filename must have an extension. Got: {original_file_name}"
+        )
+    base_name_clean = f"{name}_{ext[1:]}"
+    key_md = f"results/{date_prefix}/{file_uuid}/{base_name_clean}_result.md"
+    key_html = f"results/{date_prefix}/{file_uuid}/{base_name_clean}_result.html"
+    tmp_md = f"/tmp/{base_name_clean}_result.md"
+    tmp_html = f"/tmp/{base_name_clean}_result.html"
     try:
         markdown = ocr_response.pages[0].page_text.markdown
         html = ocr_response.pages[0].page_text.html
@@ -335,14 +317,13 @@ async def upload_translation_result_to_s3(
             os.remove(tmp_html)
 
 
-async def post_status_to_dynamodb(file_name: str, uuid: str, status: dict) -> None:
+async def post_status_to_dynamodb(file_name: str, status: dict) -> None:
     """
     Posts the status of a file processing job to DynamoDB.
 
     Args:
-        file_name (str): The file name to use as the key in DynamoDB.
-        uuid (str): The unique ID for the translation job.
-        status (dict): The status information to store.
+        file_name (str): The file name to use as the hash key in DynamoDB.
+        status (dict): The status information to store (should include uuid now).
 
     Raises:
         RuntimeError: If there is an error posting to DynamoDB.
@@ -351,16 +332,19 @@ async def post_status_to_dynamodb(file_name: str, uuid: str, status: dict) -> No
     if not table_name:
         raise RuntimeError("STATUS_TABLE_NAME environment variable is not set.")
 
+    updated_at = datetime.datetime.utcnow().isoformat()
+
     session = aioboto3.Session()
     async with session.resource("dynamodb") as dynamodb:
         try:
             table = await dynamodb.Table(table_name)
             item = {
-                "filename": file_name,
-                "uuid": uuid,
-                "status": status,
+                "filename": file_name,  # hash key
+                "updated_at": updated_at,  # sort key
+                "status": status,  # status now includes uuid
             }
             await table.put_item(Item=item)
+            logger.info(f"Status posted to DynamoDB: {item}")
         except Exception as e:
             raise RuntimeError(f"Failed to post status to DynamoDB: {e}")
 

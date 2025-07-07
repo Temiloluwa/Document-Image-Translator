@@ -3,10 +3,11 @@ Image processing utilities: enhancement, compression, and input normalization fo
 """
 
 import io
+import base64
 from logging import getLogger
 
-from PIL import Image, ImageEnhance, ImageFilter
-from utils.utils import load_image, get_config, encode_image
+from PIL import Image, ImageEnhance
+from utils.utils import load_image, get_config
 
 logger = getLogger("image-translator")
 
@@ -84,12 +85,38 @@ def enhance_image(image: Image.Image) -> Image.Image:
     Returns:
         Image: The enhanced image.
     """
-    image = ImageEnhance.Contrast(image).enhance(2.0)
-    image = ImageEnhance.Brightness(image).enhance(1.1)
-    image = image.filter(ImageFilter.SHARPEN)
-    image = image.filter(ImageFilter.MedianFilter(size=3))
-    image = ImageEnhance.Color(image).enhance(1.2)
-    logger.info(
-        "Image enhanced: contrast, brightness, sharpen, denoise, color balance applied."
-    )
+    # Apply only light contrast and brightness adjustments
+    image = ImageEnhance.Contrast(image).enhance(1.05)
+    image = ImageEnhance.Brightness(image).enhance(1.05)
+    logger.info("Image enhanced: light contrast and brightness applied.")
     return image
+
+
+def encode_image(image: str | Image.Image, format: str = "JPEG") -> str | None:
+    """Encode a file path or PIL Image to base64 and detect its format."""
+    from mimetypes import guess_type
+    import io
+
+    if isinstance(image, str):
+        try:
+            mime_type, _ = guess_type(image)
+            if mime_type is None or not mime_type.startswith("image/"):
+                logger.error(f"Error: The file {image} is not a valid image.")
+                return None
+            with open(image, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+                return f"data:{mime_type};base64,{base64_image}"
+        except FileNotFoundError:
+            logger.error(f"Error: The file {image} was not found.")
+            return None
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return None
+    elif isinstance(image, Image.Image):
+        buf = io.BytesIO()
+        image.save(buf, format=format)
+        base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
+        mime_type = f"image/{format.lower()}"
+        return f"data:{mime_type};base64,{base64_image}"
+    else:
+        raise ValueError("Input must be a file path or PIL Image.")

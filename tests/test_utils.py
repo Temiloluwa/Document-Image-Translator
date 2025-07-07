@@ -139,7 +139,9 @@ async def test_extract_s3_info_and_download(monkeypatch, tmp_path):
             {
                 "s3": {
                     "bucket": {"name": "bucket"},
-                    "object": {"key": "uploads/1234abcd-en/target-lang/file.txt"},
+                    "object": {
+                        "key": "uploads/jan-01-24/1234abcd-en/target-lang/file.txt"
+                    },
                 }
             }
         ]
@@ -153,7 +155,8 @@ async def test_extract_s3_info_and_download(monkeypatch, tmp_path):
     monkeypatch.setattr(utils, "download_file_from_s3", fake_download_file_from_s3)
     results = await utils.extract_s3_info_and_download(event)
     assert len(results) == 1
-    download_path, uuid_str, target_language, file_name = results[0]
+    download_path, date_prefix, uuid_str, target_language, file_name = results[0]
+    assert date_prefix == "jan-01-24"
     assert uuid_str == "1234abcd-en"
     assert target_language == "target-lang"
     assert file_name == "file.txt"
@@ -170,13 +173,13 @@ async def test_extract_s3_info_and_download_multiple(monkeypatch, tmp_path):
             {
                 "s3": {
                     "bucket": {"name": "bucket1"},
-                    "object": {"key": "uploads/uuid1/en/file1.txt"},
+                    "object": {"key": "uploads/jan-01-24/uuid1/en/file1.txt"},
                 }
             },
             {
                 "s3": {
                     "bucket": {"name": "bucket2"},
-                    "object": {"key": "uploads/uuid2/fr/file2.txt"},
+                    "object": {"key": "uploads/jan-01-24/uuid2/fr/file2.txt"},
                 }
             },
         ]
@@ -190,14 +193,16 @@ async def test_extract_s3_info_and_download_multiple(monkeypatch, tmp_path):
     monkeypatch.setattr(utils, "download_file_from_s3", fake_download_file_from_s3)
     results = await utils.extract_s3_info_and_download(event)
     assert len(results) == 1
-    download_path, uuid_str, target_language, file_name = results[0]
+    download_path, date_prefix, uuid_str, target_language, file_name = results[0]
+    assert date_prefix == "jan-01-24"
     assert uuid_str == "uuid1"
     assert target_language == "en"
     assert file_name == "file1.txt"
     monkeypatch.setenv("UPLOADS_BUCKET", "bucket2")
     results = await utils.extract_s3_info_and_download(event)
     assert len(results) == 1
-    download_path, uuid_str, target_language, file_name = results[0]
+    download_path, date_prefix, uuid_str, target_language, file_name = results[0]
+    assert date_prefix == "jan-01-24"
     assert uuid_str == "uuid2"
     assert target_language == "fr"
     assert file_name == "file2.txt"
@@ -219,6 +224,7 @@ async def test_upload_translation_result_to_s3(monkeypatch, tmp_path):
     monkeypatch.setattr(utils, "upload_file_to_s3", fake_upload_file_to_s3)
     monkeypatch.setenv("RESULTS_BUCKET", "results-bucket")
     file_uuid = "testfile12"
+    date_prefix = "jan-01-24"
     original_file_name = "myfile.png"
     mock_page_text = type(
         "PageText", (), {"markdown": "test-markdown", "html": "<html></html>"}
@@ -226,12 +232,13 @@ async def test_upload_translation_result_to_s3(monkeypatch, tmp_path):
     mock_page = type("Page", (), {"page_text": mock_page_text})()
     mock_ocr_response = type("OcrResponse", (), {"pages": [mock_page]})()
     await utils.upload_translation_result_to_s3(
-        mock_ocr_response, file_uuid, original_file_name
+        mock_ocr_response, date_prefix, file_uuid, original_file_name
     )
     uploaded = called["uploads"]
+    # The new format is myfile_png_result.md and myfile_png_result.html
     assert any(bucket == "results-bucket" for (_, bucket, _) in uploaded)
-    assert any(key.endswith("myfile_result.md") for (_, _, key) in uploaded)
-    assert any(key.endswith("myfile_result.html") for (_, _, key) in uploaded)
+    assert any(key.endswith("myfile_png_result.md") for (_, _, key) in uploaded)
+    assert any(key.endswith("myfile_png_result.html") for (_, _, key) in uploaded)
 
 
 @pytest.mark.asyncio
@@ -260,18 +267,21 @@ async def test_post_status_to_dynamodb(monkeypatch):
     monkeypatch.setattr(utils.aioboto3, "Session", lambda: FakeSession())
     file_name = "file.png"
     uuid = "uuid123"
-    status = {"progress": 50, "state": "processing"}
-    await utils.post_status_to_dynamodb(file_name, uuid, status)
+    status = {"progress": 50, "state": "processing", "uuid": uuid}
+    await utils.post_status_to_dynamodb(file_name, status)
     assert called["Item"]["filename"] == file_name
-    assert called["Item"]["uuid"] == uuid
-    assert called["Item"]["status"] == status
+    assert called["Item"]["status"]["uuid"] == uuid
+    assert called["Item"]["status"]["progress"] == 50
+    assert called["Item"]["status"]["state"] == "processing"
 
 
 @pytest.mark.asyncio
 async def test_post_status_to_dynamodb_env_missing(monkeypatch):
     monkeypatch.delenv("STATUS_TABLE_NAME", raising=False)
     with pytest.raises(RuntimeError):
-        await utils.post_status_to_dynamodb("file.png", "uuid123", {"progress": 0})
+        await utils.post_status_to_dynamodb(
+            "file.png", {"progress": 0, "uuid": "uuid123"}
+        )
 
 
 @pytest.mark.asyncio
@@ -297,7 +307,9 @@ async def test_post_status_to_dynamodb_error(monkeypatch):
     monkeypatch.setenv("STATUS_TABLE_NAME", "table")
     monkeypatch.setattr(utils.aioboto3, "Session", lambda: FakeSession())
     with pytest.raises(RuntimeError):
-        await utils.post_status_to_dynamodb("file.png", "uuid123", {"progress": 0})
+        await utils.post_status_to_dynamodb(
+            "file.png", {"progress": 0, "uuid": "uuid123"}
+        )
 
 
 def test_get_config_valid(tmp_path):

@@ -1,14 +1,17 @@
 include:
   - project: 'bildcraft/shared/ci-cd-pipelines'
-    file: '/ci-base/python/.ci-code-publish-lambda.yml'
-    ref: main
+    file: '/ci-web-backend-api/python-typescript/.ci-code-publish-lambda-web-and-api.yml'
+    ref:  'feature/BLC-61-ci-cd-for-web-api-backend'
 
 variables:
-  PYTHONUNBUFFERED: '1'
+  API_FOLDER: "api"
+  BACKEND_FOLDER: "src"
   S3_BUCKET: "hyc-prod-lambda-source-codes"
   S3_FOLDER: "blc/image-translation"
-  FILE_NAME: "image-translation-source-codes.zip"
-  FUNCTION_NAME: "blc-image-translation-processor-fn"
+  API_FILE_NAME: "api-gateway-proxy-source-codes.zip"
+  API_FUNCTION_NAME: "blc-image-translation-api-gateway-proxy-fn"
+  BACKEND_FILE_NAME: "image-translation-source-codes.zip"
+  BACKEND_FUNCTION_NAME: "blc-image-translation-processor-fn"
 
 stages:
   - code-quality

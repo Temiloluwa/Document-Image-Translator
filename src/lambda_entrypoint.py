@@ -5,6 +5,7 @@ Handles S3 event triggers, image processing, translation, and result upload.
 
 import json
 import asyncio
+from typing import Any, Dict, List, Tuple
 from utils.utils import (
     setup_logger,
     extract_s3_info_and_download,
@@ -18,8 +19,12 @@ logger = setup_logger("image-translator", json_format=True)
 
 
 async def execute_image_translation(
-    image, target_language, file_uuid, original_file_name
-):
+    image: str,
+    date_prefix: str,
+    target_language: str,
+    file_uuid: str,
+    original_file_name: str,
+) -> None:
     """
     Translate a processed image to the target language and upload the result to S3.
     Sets logger context for filename and uuid for traceability.
@@ -39,14 +44,16 @@ async def execute_image_translation(
         image, target_language, original_file_name, file_uuid
     )
     await upload_translation_result_to_s3(
-        translation_result, file_uuid, original_file_name
+        translation_result, date_prefix, file_uuid, original_file_name
     )
     logger.info(
         f"Translation and upload complete for file {original_file_name} (uuid={file_uuid})"
     )
 
 
-async def lambda_handler_async(file_info_list, context):
+async def lambda_handler_async(
+    file_info_list: List[Tuple[str, str, str, str, str]], context: Any
+) -> Dict[str, Any]:
     """
     Asynchronous Lambda handler for processing all files concurrently.
     Processes each file, translates, and uploads results. Logs context for each file.
@@ -62,6 +69,7 @@ async def lambda_handler_async(file_info_list, context):
         processed = []
         for (
             download_path,
+            date_prefix,
             file_uuid,
             target_language,
             original_file_name,
@@ -72,12 +80,14 @@ async def lambda_handler_async(file_info_list, context):
                 f"Processing file {original_file_name} (uuid={file_uuid}) for language {target_language}"
             )
             image = process_input_image(download_path)
-            processed.append((image, target_language, file_uuid, original_file_name))
+            processed.append(
+                (image, date_prefix, target_language, file_uuid, original_file_name)
+            )
         tasks = [
             execute_image_translation(
-                image, target_language, file_uuid, original_file_name
+                image, date_prefix, target_language, file_uuid, original_file_name
             )
-            for image, target_language, file_uuid, original_file_name in processed
+            for image, date_prefix, target_language, file_uuid, original_file_name in processed
         ]
         await asyncio.gather(*tasks)
         logger.info("Image translation completed successfully for all files.")
@@ -90,7 +100,7 @@ async def lambda_handler_async(file_info_list, context):
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda entrypoint for document image translation.
     Handles both SQS-wrapped S3 events and direct S3 events.

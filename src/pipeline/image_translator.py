@@ -39,17 +39,27 @@ async def translate_image(
         os.path.join(os.path.dirname(__file__), "..", "utils", "config.yaml")
     )
 
-    if file_name and uuid:
-        status = Status(
-            state="started", progress=0, message="Starting translation pipeline"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    logger.info(f"Translating image: {image}")
+
+    if not file_name and not uuid:
+        raise ValueError("File name and UUID must be provided to post status updates.")
+
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid,
+            state="started",
+            progress=0,
+            message="Starting translation pipeline",
+        ).asdict(),
+    )
     logger.info("Performing OCR...")
-    if file_name and uuid:
-        status = Status(
-            state="ocr_processing", progress=10, message="Performing OCR"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid, state="ocr_processing", progress=10, message="Performing OCR"
+        ).asdict(),
+    )
     ocr_response = MistralOCR().process_image(
         base64_image=image, model=config.ocr_model.id
     )
@@ -57,26 +67,32 @@ async def translate_image(
         response_ir = parse_ocr_response(json_response=json.loads(ocr_response.json()))
     except Exception as e:
         logger.error(f"Error parsing OCR response: {e}")
-        if file_name and uuid:
-            status = Status(
-                state="error", progress=15, message=f"Error parsing OCR response: {e}"
-            ).asdict()
-            await post_status_to_dynamodb(file_name, uuid, status)
+        await post_status_to_dynamodb(
+            file_name,
+            Status(
+                uuid=uuid,
+                state="error",
+                progress=15,
+                message=f"Error parsing OCR response: {e}",
+            ).asdict(),
+        )
         raise ValueError(
             "Failed to parse OCR response. Please check the input image or OCR model configuration."
         )
-    if file_name and uuid:
-        status = Status(
-            state="ocr_complete", progress=30, message="OCR complete"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid, state="ocr_complete", progress=30, message="OCR complete"
+        ).asdict(),
+    )
 
     logger.info("Translating markdown with Gemini using template prompt...")
-    if file_name and uuid:
-        status = Status(
-            state="translating", progress=50, message="Translating markdown"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid, state="translating", progress=50, message="Translating markdown"
+        ).asdict(),
+    )
     translation_system_prompt = Prompt.get_system_translation_prompt()
     translation_user_prompt = Prompt.get_user_translation_prompt(
         response_ir.pages[0].page_text.markdown, target_language
@@ -92,27 +108,34 @@ async def translate_image(
         translated_markdown = translation_response.contents[0].strip()
     except Exception as e:
         logger.error(f"Error parsing translation LLM response: {e}")
-        if file_name and uuid:
-            status = Status(
+        await post_status_to_dynamodb(
+            file_name,
+            Status(
+                uuid=uuid,
                 state="error",
                 progress=60,
                 message=f"Error parsing translation LLM response: {e}",
-            ).asdict()
-            await post_status_to_dynamodb(file_name, uuid, status)
+            ).asdict(),
+        )
         raise ValueError("Failed to parse LLM response for translation.")
     response_ir.pages[0].page_text.markdown = translated_markdown
-    if file_name and uuid:
-        status = Status(
-            state="translation_complete", progress=70, message="Translation complete"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid,
+            state="translation_complete",
+            progress=70,
+            message="Translation complete",
+        ).asdict(),
+    )
 
     logger.info("Generating HTML for translated markdown with Gemini...")
-    if file_name and uuid:
-        status = Status(
-            state="generating_html", progress=80, message="Generating HTML"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid, state="generating_html", progress=80, message="Generating HTML"
+        ).asdict(),
+    )
     image_dimensions_list = get_image_dimensions_list_from_ir(response_ir.pages[0])
     html_system_prompt = Prompt.get_system_markdown_to_html_prompt(
         image_dimensions_list
@@ -127,29 +150,36 @@ async def translate_image(
         translated_html = html_response.contents[0].strip("```html\n")
     except Exception as e:
         logger.error(f"Error parsing HTML LLM response: {e}")
-        if file_name and uuid:
-            status = Status(
+        await post_status_to_dynamodb(
+            file_name,
+            Status(
+                uuid=uuid,
                 state="error",
                 progress=90,
                 message=f"Error parsing HTML LLM response: {e}",
-            ).asdict()
-            await post_status_to_dynamodb(file_name, uuid, status)
+            ).asdict(),
+        )
         raise ValueError("Failed to parse LLM response for HTML conversion.")
     response_ir.pages[0].page_text.html = translated_html
-    if file_name and uuid:
-        status = Status(
-            state="html_complete", progress=95, message="HTML generation complete"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid,
+            state="html_complete",
+            progress=95,
+            message="HTML generation complete",
+        ).asdict(),
+    )
 
     logger.info("Embedding images in markdown and HTML...")
     embed_images_in_markdown(response_ir)
     embed_base64_images_in_html(response_ir)
 
     logger.info("Image translation complete.")
-    if file_name and uuid:
-        status = Status(
-            state="complete", progress=100, message="Pipeline complete"
-        ).asdict()
-        await post_status_to_dynamodb(file_name, uuid, status)
+    await post_status_to_dynamodb(
+        file_name,
+        Status(
+            uuid=uuid, state="complete", progress=100, message="Pipeline complete"
+        ).asdict(),
+    )
     return response_ir

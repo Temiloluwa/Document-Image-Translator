@@ -1,6 +1,16 @@
+
 # Document Image Translator
 
+
 A serverless demonstration of deploying AI products in AWS: this project translates document images between languages using AWS Lambda, S3, DynamoDB, and advanced AI models (OCR and LLMs).
+
+---
+
+## Live Demo
+
+**Deployed Web App:** [https://doc-translate.hifeyinc.com](https://doc-translate.hifeyinc.com)
+
+---
 
 ---
 
@@ -13,7 +23,7 @@ This project is supported by shared infrastructure and CI/CD pipeline repositori
 - **CI/CD Pipelines:** [bildcraft/shared/ci-cd-pipelines](https://gitlab.com/bildcraft/shared/ci-cd-pipelines)
   - Centralized GitLab CI/CD templates and automation for build, test, deployment, and environment management
 
-> **Note:** The infrastructure and CI/CD repositories above deploy this project to production 
+> **Note:** The infrastructure and CI/CD repositories above deploy this project to production
 ---
 
 ## Table of Contents
@@ -73,6 +83,7 @@ This backend is exposed as a REST API powered by **AWS API Gateway** and AWS Lam
 
 ---
 
+
 ## Web Application (Frontend)
 
 - **Location:** `web/document-image-translator/`
@@ -81,6 +92,7 @@ This backend is exposed as a REST API powered by **AWS API Gateway** and AWS Lam
   - Upload document images (requests presigned S3 URL from backend)
   - Track translation status (polls backend for updates)
   - View/download translated results
+- **Live Demo:** [https://doc-translate.hifeyinc.com](https://doc-translate.hifeyinc.com)
 - **Development:**
   1. `cd web/document-image-translator`
   2. Install dependencies: `npm install`
@@ -155,4 +167,16 @@ MIT
 
 ---
 
-*Last updated: June 9, 2025*
+---
+
+## Notes on Tech Stack (Frontend)
+
+- **Next.js 15** and **React 19** for the web app UI
+- **Tailwind CSS 4** for styling (via PostCSS)
+- **TypeScript** with strict mode and modern config
+- **ESLint 9** with Next.js and TypeScript rules
+- See `web/document-image-translator/package.json` for all dependencies
+
+---
+
+*Last updated: July 7, 2025*

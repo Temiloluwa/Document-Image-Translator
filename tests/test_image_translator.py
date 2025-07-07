@@ -3,15 +3,28 @@ Unit tests for the image translation pipeline, including OCR, translation, and e
 """
 
 from unittest.mock import patch, MagicMock, AsyncMock
+import pytest
 from PIL import Image
 from pipeline.image_translator import translate_image
-import pytest
 
 
 def create_test_image(mode="RGB", size=(100, 100), color=(255, 0, 0)):
     """Create a test image with the specified mode, size, and color."""
     img = Image.new(mode, size, color)
     return img
+
+
+@pytest.fixture(autouse=True)
+def patch_post_status_to_dynamodb(monkeypatch):
+    """Patch post_status_to_dynamodb to just log to console for all tests in this module."""
+
+    async def fake_post_status(file_name, status):
+        print(f"MOCK DYNAMO: {file_name} {status}")
+
+    monkeypatch.setenv("STATUS_TABLE_NAME", "dummy-table")
+    monkeypatch.setattr(
+        "pipeline.image_translator.post_status_to_dynamodb", fake_post_status
+    )
 
 
 @patch("pipeline.image_translator.MistralOCR")
@@ -45,7 +58,8 @@ async def test_translate_image_success(
     mock_gemini.return_value = mock_gemini_instance
 
     img = create_test_image()
-    result = await translate_image(img, "fr")
+    # Provide dummy file_name and uuid to pass the new required arguments
+    result = await translate_image(img, "fr", file_name="dummy.png", uuid="dummy-uuid")
     # Check the returned OcrResponse object
     assert result.pages[0].page_text.markdown == "TRANSLATED_TEXT"
     assert result.pages[0].page_text.html is not None
@@ -80,8 +94,9 @@ async def test_translate_image_handles_missing_ocr_markdown(
     mock_gemini.return_value = mock_gemini_instance
 
     img = create_test_image()
+    # Provide dummy file_name and uuid to pass the new required arguments
     with pytest.raises(ValueError) as e:
-        await translate_image(img, "de")
+        await translate_image(img, "de", file_name="dummy.png", uuid="dummy-uuid")
     assert "Failed to parse OCR response" in str(e.value)
 
 
@@ -108,6 +123,7 @@ async def test_translate_image_handles_empty_gemini_response(
     mock_gemini.return_value = mock_gemini_instance
 
     img = create_test_image()
+    # Provide dummy file_name and uuid to pass the new required arguments
     with pytest.raises(Exception) as e:
-        await translate_image(img, "es")
+        await translate_image(img, "es", file_name="dummy.png", uuid="dummy-uuid")
     assert "Failed to parse LLM response for translation" in str(e.value)

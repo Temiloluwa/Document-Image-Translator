@@ -82,9 +82,9 @@ def test_lambda_entrypoint_with_sample_events(
         with open(dest_path, "w") as f:
             json.dump(result, f)
 
-    async def fake_post_status_to_dynamodb(file_name, uuid, status):
+    async def fake_post_status_to_dynamodb(file_name, status):
         logger.info(
-            f"Mock post_status_to_dynamodb: file_name={file_name}, uuid={uuid}, status={status}"
+            f"Mock post_status_to_dynamodb: file_name={file_name}, status={status}"
         )
 
     monkeypatch.setattr(
