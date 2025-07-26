@@ -31,3 +31,21 @@ class MistralOCR:
             include_image_base64=True,
         )
         return ocr_response
+
+    def process_pdf(self, base64_pdf: str, model: str = "mistral-ocr-latest"):
+        """
+        Run OCR on a base64-encoded PDF using the specified model.
+
+        Args:
+            base64_pdf (str): The PDF encoded as base64.
+            model (str): The OCR model to use.
+
+        Returns:
+            The OCR response from the Mistral API.
+        """
+        ocr_response = self.client.ocr.process(
+            model=model,
+            document={"type": "document_url", "document_url": base64_pdf},
+            include_image_base64=True,
+        )
+        return ocr_response

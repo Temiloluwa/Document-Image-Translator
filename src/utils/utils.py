@@ -285,11 +285,16 @@ async def upload_translation_result_to_s3(
         original_file_name (str): The original file name of the uploaded file.
     """
     bucket = os.environ.get("RESULTS_BUCKET")
+    logger.info(f"Uploading translation results to S3 bucket: {bucket}")
     if not bucket:
+        logger.error("RESULTS_BUCKET environment variable is not set.")
         raise RuntimeError("RESULTS_BUCKET environment variable is not set.")
     # The filename is already sanitized, just split and join with _
     name, ext = os.path.splitext(original_file_name)
     if not ext:
+        logger.error(
+            f"upload_translation_result_to_s3: filename must have an extension. Got: {original_file_name}"
+        )
         raise Exception(
             f"upload_translation_result_to_s3: filename must have an extension. Got: {original_file_name}"
         )
@@ -298,23 +303,33 @@ async def upload_translation_result_to_s3(
     key_html = f"results/{date_prefix}/{file_uuid}/{base_name_clean}_result.html"
     tmp_md = f"/tmp/{base_name_clean}_result.md"
     tmp_html = f"/tmp/{base_name_clean}_result.html"
+    logger.info(f"Preparing markdown and HTML files for upload: {tmp_md}, {tmp_html}")
     try:
         markdown = ocr_response.pages[0].page_text.markdown
         html = ocr_response.pages[0].page_text.html
         async with aiofiles.open(tmp_md, mode="w") as f_md:
             await f_md.write(markdown)
+        logger.info(f"Markdown file written: {tmp_md}")
         async with aiofiles.open(tmp_html, mode="w") as f_html:
             await f_html.write(html)
+        logger.info(f"HTML file written: {tmp_html}")
     except (OSError, IOError, Exception) as e:
+        logger.error(f"Failed to write result files: {e}")
         raise RuntimeError(f"Failed to write result files: {e}")
     try:
+        logger.info(f"Uploading markdown to S3: {key_md}")
         await upload_file_to_s3(tmp_md, bucket, key_md)
+        logger.info(f"Markdown uploaded to S3: {key_md}")
+        logger.info(f"Uploading HTML to S3: {key_html}")
         await upload_file_to_s3(tmp_html, bucket, key_html)
+        logger.info(f"HTML uploaded to S3: {key_html}")
     finally:
         if os.path.exists(tmp_md):
             os.remove(tmp_md)
+            logger.info(f"Temporary markdown file deleted: {tmp_md}")
         if os.path.exists(tmp_html):
             os.remove(tmp_html)
+            logger.info(f"Temporary HTML file deleted: {tmp_html}")
 
 
 async def post_status_to_dynamodb(file_name: str, status: dict) -> None:

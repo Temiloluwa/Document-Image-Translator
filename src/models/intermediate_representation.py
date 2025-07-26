@@ -1,7 +1,11 @@
 import re
+import logging
 from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 from bs4 import BeautifulSoup
+from copy import deepcopy
+
+logger = logging.getLogger("image-translator")
 
 
 class BoundingBox(BaseModel):
@@ -207,3 +211,87 @@ def get_image_dimensions_list_from_ir(ir_page) -> str:
             height = img.bounding_box.bottom_right_y - img.bounding_box.top_left_y
             image_dimensions.append(f"{img.id}: {width}x{height} px")
     return "\n".join(image_dimensions)
+
+
+def combine_pages_within_token_limit(
+    ocr_response: OcrResponse,
+    token_counter_fn,
+    max_tokens: int,
+    max_tokens_per_page: int = None,
+) -> OcrResponse:
+    """
+    Combine pages into single IR, enforcing a max token limit per page.
+    Returns an OcrResponse whose pages can be iterated with async for.
+    """
+    combined_pages = []
+    page_idx = 0
+    buf_md, buf_html, buf_plain, buf_imgs, buf_dims = [], [], [], [], []
+    buf_tokens = 0
+
+    def add_page(md, html, plain, imgs, dims):
+        nonlocal page_idx
+        combined_pages.append(
+            Page(
+                index=page_idx,
+                page_text=PageText(markdown=md, html=html, plain=plain),
+                images=deepcopy(imgs),
+                dimensions=dims,
+            )
+        )
+        logger.info(f"🧩 Added page {page_idx} | tokens: {token_counter_fn(md)}")
+        page_idx += 1
+
+    for page in ocr_response.pages:
+        pt = page.page_text
+        md = pt.markdown.strip()
+        html = pt.html
+        plain = pt.plain
+        imgs = page.images
+        dims = page.dimensions
+        tokens = token_counter_fn(md)
+        logger.info(f"📄 Page {page.index} | tokens: {tokens}")
+        # If page itself exceeds max_tokens_per_page, split it into chunks
+        if max_tokens_per_page and tokens > max_tokens_per_page:
+            logger.warning(
+                f"✂️ Page {page.index} exceeds max_tokens_per_page ({tokens} > {max_tokens_per_page}), chunking."
+            )
+            start = 0
+            while start < len(md):
+                chunk = md[start : start + max_tokens_per_page]
+                add_page(chunk, html, plain, imgs, dims)
+                start += max_tokens_per_page
+            continue
+        # If adding this page would exceed max_tokens_per_page, flush buffer first
+        if max_tokens_per_page and (buf_tokens + tokens > max_tokens_per_page):
+            if buf_md:
+                add_page(
+                    "\n\n".join(buf_md),
+                    "\n\n".join(buf_html) if buf_html else None,
+                    "\n\n".join(buf_plain) if buf_plain else None,
+                    buf_imgs,
+                    buf_dims[0] if buf_dims else None,
+                )
+            buf_md, buf_html, buf_plain, buf_imgs, buf_dims = [], [], [], [], []
+            buf_tokens = 0
+        # Add this page to buffer
+        buf_md.append(md)
+        buf_html.append(html.strip() if html else "")
+        buf_plain.append(plain.strip() if plain else "")
+        buf_imgs.extend(imgs)
+        buf_dims.append(dims)
+        buf_tokens += tokens
+    # Flush any remaining buffer
+    if buf_md:
+        add_page(
+            "\n\n".join(buf_md),
+            "\n\n".join(buf_html) if buf_html else None,
+            "\n\n".join(buf_plain) if buf_plain else None,
+            buf_imgs,
+            buf_dims[0] if buf_dims else None,
+        )
+    ocr_response_sync = deepcopy(ocr_response)
+    ocr_response_sync.pages = combined_pages
+    logger.info(
+        f"✅ combine_pages_within_token_limit complete. Total pages: {len(combined_pages)}"
+    )
+    return ocr_response_sync

@@ -1,7 +1,8 @@
 translator_model:
-  id: "gemini-2.5-flash-preview-04-17"
+  id: "gemini-2.5-flash"
   response_mime_type: 'application/json'
   temperature: 0
+  timeout: 120_000 # milliseconds
 
 ocr_model:
   id: "mistral-ocr-latest"
@@ -9,3 +10,9 @@ ocr_model:
 image:
   max_size_kb: 1024
   initial_quality: 95
+
+pdf:
+  max_size_kb: 5120
+  max_chars: 25_000 #750_000
+  max_token_size: 10_000
+  max_tokens_per_page: 5_000

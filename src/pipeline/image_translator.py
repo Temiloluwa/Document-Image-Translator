@@ -35,15 +35,16 @@ async def translate_image(
         Returns:
     =     OcrResponse: The response containing translated text and images in markdown and HTML formats.
     """
+    # Step 1: Load configuration
     config = get_config(
         os.path.join(os.path.dirname(__file__), "..", "utils", "config.yaml")
     )
 
-    logger.info(f"Translating image: {image}")
-
-    if not file_name and not uuid:
+    # Step 2: Validate required arguments
+    if not file_name or not uuid:
         raise ValueError("File name and UUID must be provided to post status updates.")
 
+    # Step 3: Post initial status
     await post_status_to_dynamodb(
         file_name,
         Status(
@@ -53,6 +54,8 @@ async def translate_image(
             message="Starting translation pipeline",
         ).asdict(),
     )
+
+    # Step 4: Perform OCR on the image
     logger.info("Performing OCR...")
     await post_status_to_dynamodb(
         file_name,
@@ -79,6 +82,8 @@ async def translate_image(
         raise ValueError(
             "Failed to parse OCR response. Please check the input image or OCR model configuration."
         )
+
+    # Step 5: Post OCR complete status
     await post_status_to_dynamodb(
         file_name,
         Status(
@@ -86,68 +91,35 @@ async def translate_image(
         ).asdict(),
     )
 
-    logger.info("Translating markdown with Gemini using template prompt...")
+    # Step 6: Prepare translation prompts and call LLM for translation and HTML generation
+    logger.info("Translating and generating HTML with Gemini using template prompt...")
     await post_status_to_dynamodb(
         file_name,
         Status(
-            uuid=uuid, state="translating", progress=50, message="Translating markdown"
+            uuid=uuid,
+            state="translating",
+            progress=50,
+            message="Translating and generating HTML",
         ).asdict(),
     )
-    translation_system_prompt = Prompt.get_system_translation_prompt()
-    translation_user_prompt = Prompt.get_user_translation_prompt(
+    image_dimensions_list = get_image_dimensions_list_from_ir(response_ir.pages[0])
+    translation_system_prompt = Prompt.get_system_translate_and_html_prompt(
+        image_dimensions_list
+    )
+    translation_user_prompt = Prompt.get_user_translate_and_html_prompt(
         response_ir.pages[0].page_text.markdown, target_language
     )
-    translation_response = await Gemini(
-        system_instruction=translation_system_prompt
-    ).generate(
+
+    # Step 7: Call Gemini LLM
+    html_response = await Gemini(translation_system_prompt).generate(
         prompt=translation_user_prompt,
         image=[],
         model=config.translator_model.id,
     )
     try:
-        translated_markdown = translation_response.contents[0].strip()
-    except Exception as e:
-        logger.error(f"Error parsing translation LLM response: {e}")
-        await post_status_to_dynamodb(
-            file_name,
-            Status(
-                uuid=uuid,
-                state="error",
-                progress=60,
-                message=f"Error parsing translation LLM response: {e}",
-            ).asdict(),
-        )
-        raise ValueError("Failed to parse LLM response for translation.")
-    response_ir.pages[0].page_text.markdown = translated_markdown
-    await post_status_to_dynamodb(
-        file_name,
-        Status(
-            uuid=uuid,
-            state="translation_complete",
-            progress=70,
-            message="Translation complete",
-        ).asdict(),
-    )
-
-    logger.info("Generating HTML for translated markdown with Gemini...")
-    await post_status_to_dynamodb(
-        file_name,
-        Status(
-            uuid=uuid, state="generating_html", progress=80, message="Generating HTML"
-        ).asdict(),
-    )
-    image_dimensions_list = get_image_dimensions_list_from_ir(response_ir.pages[0])
-    html_system_prompt = Prompt.get_system_markdown_to_html_prompt(
-        image_dimensions_list
-    )
-    html_user_prompt = Prompt.get_user_markdown_to_html_prompt(translated_markdown)
-    html_response = await Gemini(system_instruction=html_system_prompt).generate(
-        prompt=html_user_prompt,
-        image=[],
-        model=config.translator_model.id,
-    )
-    try:
+        # The LLM should return translated HTML in one step
         translated_html = html_response.contents[0].strip("```html\n")
+        response_ir.pages[0].page_text.html = translated_html
     except Exception as e:
         logger.error(f"Error parsing HTML LLM response: {e}")
         await post_status_to_dynamodb(
@@ -160,7 +132,8 @@ async def translate_image(
             ).asdict(),
         )
         raise ValueError("Failed to parse LLM response for HTML conversion.")
-    response_ir.pages[0].page_text.html = translated_html
+
+    # Step 8: Post HTML complete status
     await post_status_to_dynamodb(
         file_name,
         Status(
@@ -171,10 +144,12 @@ async def translate_image(
         ).asdict(),
     )
 
+    # Step 9: Embed images in markdown and HTML
     logger.info("Embedding images in markdown and HTML...")
     embed_images_in_markdown(response_ir)
     embed_base64_images_in_html(response_ir)
 
+    # Step 10: Post pipeline complete status
     logger.info("Image translation complete.")
     await post_status_to_dynamodb(
         file_name,
@@ -182,4 +157,6 @@ async def translate_image(
             uuid=uuid, state="complete", progress=100, message="Pipeline complete"
         ).asdict(),
     )
+
+    # Step 11: Return the intermediate representation
     return response_ir

@@ -78,3 +78,17 @@ class Gemini(LLM):
         """
         response = response.candidates[0].content.parts[0].text
         return GeminiAssistantMessage(response)
+
+    def estimate_tokens(self, text: str, model_id: str) -> int:
+        """
+        Estimate the number of tokens in a given text.
+
+        Args:
+            text (str): The input text to estimate tokens for.
+
+        Returns:
+            int: The estimated number of tokens.
+        """
+        token_count = self._client.models.count_tokens(model=model_id, contents=text)
+
+        return int(token_count.total_tokens)

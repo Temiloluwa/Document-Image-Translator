@@ -13,24 +13,26 @@ from utils.utils import (
     normalize_event_to_s3_records,
 )
 from pipeline.image_translator import translate_image
+from pipeline.pdf_translator import translate_pdf
 from pipeline.image_processor import process_input_image
+from pipeline.pdf_processor import process_input_pdf
 
 logger = setup_logger("image-translator", json_format=True)
 
 
-async def execute_image_translation(
-    image: str,
+async def execute_file_translation(
+    file_data: str,
     date_prefix: str,
     target_language: str,
     file_uuid: str,
     original_file_name: str,
 ) -> None:
     """
-    Translate a processed image to the target language and upload the result to S3.
+    Translate a processed file (image or PDF) to the target language and upload the result to S3.
     Sets logger context for filename and uuid for traceability.
 
     Args:
-        image: The processed image object.
+        file_data: The processed file object (image or PDF path).
         target_language (str): Target language for translation.
         file_uuid (str): Unique identifier for the file.
         original_file_name (str): Original file name from S3.
@@ -38,11 +40,16 @@ async def execute_image_translation(
     logger.filename = original_file_name
     logger.uuid = file_uuid
     logger.info(
-        f"Translating image for file {original_file_name} (uuid={file_uuid}) to {target_language}"
+        f"Translating file {original_file_name} (uuid={file_uuid}) to {target_language}"
     )
-    translation_result = await translate_image(
-        image, target_language, original_file_name, file_uuid
-    )
+    if original_file_name.lower().endswith(".pdf"):
+        translation_result = await translate_pdf(
+            file_data, target_language, original_file_name, file_uuid
+        )
+    else:
+        translation_result = await translate_image(
+            file_data, target_language, original_file_name, file_uuid
+        )
     await upload_translation_result_to_s3(
         translation_result, date_prefix, file_uuid, original_file_name
     )
@@ -79,15 +86,28 @@ async def lambda_handler_async(
             logger.info(
                 f"Processing file {original_file_name} (uuid={file_uuid}) for language {target_language}"
             )
-            image = process_input_image(download_path)
+            if download_path.lower().endswith(".pdf"):
+                processed_file = process_input_pdf(download_path)
+            else:
+                processed_file = process_input_image(download_path)
             processed.append(
-                (image, date_prefix, target_language, file_uuid, original_file_name)
+                (
+                    processed_file,
+                    date_prefix,
+                    target_language,
+                    file_uuid,
+                    original_file_name,
+                )
             )
         tasks = [
-            execute_image_translation(
-                image, date_prefix, target_language, file_uuid, original_file_name
+            execute_file_translation(
+                processed_file,
+                date_prefix,
+                target_language,
+                file_uuid,
+                original_file_name,
             )
-            for image, date_prefix, target_language, file_uuid, original_file_name in processed
+            for processed_file, date_prefix, target_language, file_uuid, original_file_name in processed
         ]
         await asyncio.gather(*tasks)
         logger.info("Image translation completed successfully for all files.")

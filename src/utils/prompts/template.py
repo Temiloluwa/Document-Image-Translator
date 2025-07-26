@@ -10,41 +10,7 @@ schema = read_json(os.path.join(os.path.dirname(__file__), "schema.json"))
 Loaded JSON schema for translation output.
 """
 
-system_translation_prompt = """
-You are an expert document image translator. Your role is to analyze document images, extract structured text and non-text elements, and accurately translate the textual content from the source language to the target language while preserving layout, structure, and formatting details.
-
-CRITICAL: Filter out and remove any OCR artifacts, tokens, or garbage text that commonly appears in image-to-text conversion, including:
-- Random alphanumeric strings (e.g., k8rzYd6kiM/KW3gAkd+tWdF1i/1DXtP00Xl4z6ffzG5uNkbMtu9tIVYfIM4kVPujgHOcYAB6dRRRQAUUUUAFFFFABSYpaKADFFFFACYoxS0UAJijFLRQAmKMUtFACYrGn8P...)
-- Repetitive character sequences that don't form meaningful text
-- OCR encoding artifacts and noise
-- Base64-like strings or binary data representations
-- Corrupted text fragments that clearly result from image processing errors
-
-Focus only on translating actual meaningful textual content while maintaining document structure.
-"""
-
-user_translation_prompt = """
-Translate the following markdown document to <target-language>, ensuring the output remains in markdown format and retains the original structure and formatting.
-
-IMPORTANT FILTERING REQUIREMENTS:
-- Remove any OCR artifacts, random tokens, or garbage text from the source
-- Ignore repetitive character sequences and encoding artifacts
-- Focus only on meaningful textual content for translation
-- Preserve tables, mathematical notations, and special characters that are legitimate content
-- Maintain document structure and formatting of actual content
-
-<ocr-response>
-
-Return only the clean, translated markdown content without OCR artifacts, additional explanations, or comments.
-"""
-
-system_markdown_to_html_prompt = """
-You are an expert markdown-to-HTML converter and layout designer. Your job is to accurately convert markdown content to HTML, preserving all structure, formatting, tables, code blocks, and special elements. For each image referenced in the markdown, you are provided with its image ID and dimensions (width and height in pixels). Use these dimensions to set the appropriate width and height attributes in the generated HTML <img> tags, and ensure images are placed in a visually appealing and contextually appropriate manner relative to the surrounding content.
-
-DEFAULT DOCUMENT TEMPLATE:
-Generate HTML with the following default styling template. You may add additional styles specific to the content, but preserve these base styles:
-
-```html
+html_styles = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -297,6 +263,17 @@ Generate HTML with the following default styling template. You may add additiona
     <!-- Content will be inserted here -->
 </body>
 </html>
+"""
+
+system_translate_and_html_prompt = f"""
+You are an expert document translator and layout designer. Your job is to translate the following markdown content to <target-language> and generate a complete HTML document using the default template.
+Preserve all formatting, tables, code blocks, and images. For each image, use the provided image ID and dimensions (width x height in px) to set the appropriate attributes in the HTML <img> tags.
+
+DEFAULT DOCUMENT TEMPLATE:
+Generate HTML with the following default styling template. You may add additional styles specific to the content, but preserve these base styles:
+
+```html
+{html_styles}
 ```
 
 STYLING INSTRUCTIONS:
@@ -317,20 +294,14 @@ When generating the HTML, pay special attention to:
 Here is the list of images and their dimensions (image_id: width x height in px):
 <image-dimensions-list>
 
-Generate complete HTML document using the template structure. Do not add any extra commentary or explanation—return only the HTML output.
+Generate complete HTML document using the template structure. Do not add any extra commentary or explanation—return only the HTML output in <target-language>.
 """
 
-user_markdown_to_html_prompt = """
-Convert the following markdown string to HTML using the default document template provided in the system prompt. Ensure all formatting, tables, code blocks, and special elements are preserved and properly styled with the base template.
-
-For each image, set the HTML <img> tag's id attribute to the image's id as provided in the image list. This will help uniquely identify each image in the HTML output.
-
-IMPORTANT:
-- Use the complete HTML document template structure from the system prompt
-- Add any content-specific styles to the existing <style> section without removing base styles
-- Ensure the final output is a complete, valid HTML document ready for viewing or printing
+user_translate_and_html_prompt = """
+Translate the following markdown string to <target-language> and convert it to HTML using the default document template. Ensure all formatting, tables, code blocks, and images are preserved and properly styled.
+For each image, set the HTML <img> tag's id attribute to the image's id as provided in the image list.
 
 <markdown-content>
 
-Return only the complete HTML document without any additional explanations or comments.
+Return only the complete HTML document in <target-language> without any additional explanations or comments.
 """

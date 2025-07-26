@@ -61,7 +61,7 @@ async def test_translate_image_success(
     # Provide dummy file_name and uuid to pass the new required arguments
     result = await translate_image(img, "fr", file_name="dummy.png", uuid="dummy-uuid")
     # Check the returned OcrResponse object
-    assert result.pages[0].page_text.markdown == "TRANSLATED_TEXT"
+    assert result.pages[0].page_text.html == "TRANSLATED_TEXT"
     assert result.pages[0].page_text.html is not None
     assert result.metadata.model == "mistral-ocr-latest"
 
@@ -124,6 +124,6 @@ async def test_translate_image_handles_empty_gemini_response(
 
     img = create_test_image()
     # Provide dummy file_name and uuid to pass the new required arguments
-    with pytest.raises(Exception) as e:
+    with pytest.raises(ValueError) as e:
         await translate_image(img, "es", file_name="dummy.png", uuid="dummy-uuid")
-    assert "Failed to parse LLM response for translation" in str(e.value)
+    assert "Failed to parse LLM response for HTML conversion" in str(e.value)
